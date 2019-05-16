@@ -70,12 +70,12 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 			| AT91C_DDRC2_MD_DDR2_SDRAM);
 
 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9	/* 10 column bits */
-			| AT91C_DDRC2_NR_14		/* 14 row bits(8K)*/
+			| AT91C_DDRC2_NR_13		/* 14 row bits(8K)*/
 			| AT91C_DDRC2_CAS_3		/* CAS Latency 3 */
 			| AT91C_DDRC2_EBISHARE		/* DQM is shared with other controller */
 			| AT91C_DDRC2_DISABLE_RESET_DLL);
 
-	ddramc_config->rtr = 0x24B;
+	ddramc_config->rtr = 0x40F;
 
 	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5 = 45 ns */
 			| AT91C_DDRC2_TRCD_(2)		/* 2 * 7.5 = 22.5 ns */
@@ -134,6 +134,7 @@ static void recovery_buttons_hw_init(void)
 
 static int ek_special_hw_init(void)
 {
+	unsigned int rstc;
 	/*
 	 * For on the sam9m10g45ek board, the chip wm9711 stay in the test mode,
 	 * so it need do some action to exit mode.
@@ -146,6 +147,20 @@ static int ek_special_hw_init(void)
 
 	pmc_enable_periph_clock(AT91C_ID_PIOD_E);
 	pio_configure(wm9711_pins);
+
+	rstc = readl(AT91C_BASE_RSTC + RSTC_RMR);
+
+	writel(((0xA5 << 24) | (AT91C_RSTC_ERSTL_MASK & (0x02 << 8)) | 
+		AT91C_RSTC_URSTEN), AT91C_BASE_RSTC + RSTC_RMR);
+
+	writel(((0xA5 << 24) | AT91C_RSTC_EXTRST), AT91C_BASE_RSTC + RSTC_RCR);
+
+	/* Wait for end hardware reset */
+	while (!(readl(AT91C_BASE_RSTC + RSTC_RSR) & AT91C_RSTC_NRSTL))
+	    ;
+
+	/* Restore NRST value */
+	writel(((0xA5 << 24) | AT91C_RSTC_URSTEN | rstc), AT91C_BASE_RSTC + RSTC_RMR);
 
 	/*
 	 * Disable pull-up on:
